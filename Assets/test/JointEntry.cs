@@ -16,51 +16,81 @@ public class JointEntry : MonoBehaviour
         [Tooltip("ArticulationBody to be controlled")]
         public ArticulationBody articulation;
 
-        [Header("Target Control")]
-        [Tooltip("Target joint angle in degrees")]
+        [Header("Target Control (User)")]
+        [Tooltip("Target joint angle in degrees (user zeroed)")]
         public float targetAngleDeg = 0f;
 
         [Header("Drive Axis")]
         [Tooltip("Which drive axis is used by this joint")]
         public DriveAxis driveAxis = DriveAxis.X;
 
-        [Header("Runtime Info (Read Only)")]
-        [SerializeField]
-        private float currentAngleDeg;
+        [Header("Zeroing")]
+        [Tooltip("Offset added to user target before sending to drive.target")]
+        public float zeroOffsetDeg = 0f;
 
-        public float CurrentAngleDeg => currentAngleDeg;
+        [Header("Runtime Info (Read Only)")]
+        [SerializeField] private float currentRawDeg;
+        [SerializeField] private float currentUserDeg;
+
+        public float CurrentRawDeg => currentRawDeg;
+        public float CurrentUserDeg => currentUserDeg;
 
         /// <summary>
         /// Update current joint angle from jointPosition (radians to degrees).
+        /// Uses axis to pick the correct DOF when possible.
         /// </summary>
         public void UpdateCurrentAngle()
         {
             if (articulation == null) return;
-            if (articulation.jointPosition.dofCount == 0) return;
 
-            currentAngleDeg = articulation.jointPosition[0] * Mathf.Rad2Deg;
+            int dof = articulation.jointPosition.dofCount;
+            if (dof <= 0) return;
+
+            // Best-effort mapping:
+            // - Many revolute joints are 1-DOF => index 0 is correct.
+            // - If multi-DOF, axis->index mapping is not guaranteed by Unity,
+            //   but this heuristic is still better than always 0.
+            int index = 0;
+            if (dof >= 3)
+            {
+                index = (int)driveAxis; // X=0,Y=1,Z=2 (heuristic)
+            }
+            else if (dof == 2)
+            {
+                index = Mathf.Clamp((int)driveAxis, 0, 1);
+            }
+
+            currentRawDeg = articulation.jointPosition[index] * Mathf.Rad2Deg;
+            currentUserDeg = currentRawDeg - zeroOffsetDeg;
+        }
+
+        /// <summary>
+        /// Convert user target into drive target by applying zero offset.
+        /// </summary>
+        public float GetDriveTargetDeg()
+        {
+            return targetAngleDeg + zeroOffsetDeg;
+        }
+
+        /// <summary>
+        /// Set current pose as user zero (i.e., make currentUserDeg become 0).
+        /// </summary>
+        public void ZeroHere()
+        {
+            // After UpdateCurrentAngle:
+            // want currentUserDeg = 0 => zeroOffsetDeg = currentRawDeg
+            zeroOffsetDeg = currentRawDeg;
         }
     }
 
-    public enum DriveAxis
-    {
-        X,
-        Y,
-        Z
-    }
+    public enum DriveAxis { X, Y, Z }
 
     [Header("Controlled Joints")]
-    [Tooltip("List of joints to be driven")]
     public List<Joint> joints = new List<Joint>();
 
     [Header("Global Drive Parameters")]
-    [Tooltip("Joint stiffness for position control")]
     public float stiffness = 10000f;
-
-    [Tooltip("Joint damping")]
     public float damping = 100f;
-
-    [Tooltip("Maximum force or torque applied by the joint")]
     public float forceLimit = 1000f;
 
     [Header("Motion Settings")]
@@ -72,9 +102,6 @@ public class JointEntry : MonoBehaviour
         DriveAllJoints(Time.fixedDeltaTime);
     }
 
-    /// <summary>
-    /// Drive all joints toward their target angles.
-    /// </summary>
     private void DriveAllJoints(float deltaTime)
     {
         foreach (var joint in joints)
@@ -84,44 +111,30 @@ public class JointEntry : MonoBehaviour
 
             joint.UpdateCurrentAngle();
 
-            float target = joint.targetAngleDeg;
+            float userTarget = joint.targetAngleDeg;
 
             if (speedDegPerSec > 0f)
             {
-                target = Mathf.MoveTowardsAngle(
-                    joint.CurrentAngleDeg,
+                userTarget = Mathf.MoveTowardsAngle(
+                    joint.CurrentUserDeg,
                     joint.targetAngleDeg,
                     speedDegPerSec * deltaTime
                 );
             }
 
-            ApplyDrive(joint.articulation, joint.driveAxis, target);
+            float driveTarget = userTarget + joint.zeroOffsetDeg;
+            ApplyDrive(joint.articulation, joint.driveAxis, driveTarget);
         }
     }
 
-    /// <summary>
-    /// Apply drive parameters and target angle to the specified articulation joint.
-    /// </summary>
-    private void ApplyDrive(
-        ArticulationBody articulation,
-        DriveAxis axis,
-        float targetAngleDeg
-    )
+    private void ApplyDrive(ArticulationBody articulation, DriveAxis axis, float targetAngleDeg)
     {
-        ArticulationDrive drive;
-
-        switch (axis)
+        ArticulationDrive drive = axis switch
         {
-            case DriveAxis.Y:
-                drive = articulation.yDrive;
-                break;
-            case DriveAxis.Z:
-                drive = articulation.zDrive;
-                break;
-            default:
-                drive = articulation.xDrive;
-                break;
-        }
+            DriveAxis.Y => articulation.yDrive,
+            DriveAxis.Z => articulation.zDrive,
+            _ => articulation.xDrive
+        };
 
         drive.stiffness = stiffness;
         drive.damping = damping;
@@ -130,24 +143,17 @@ public class JointEntry : MonoBehaviour
 
         switch (axis)
         {
-            case DriveAxis.Y:
-                articulation.yDrive = drive;
-                break;
-            case DriveAxis.Z:
-                articulation.zDrive = drive;
-                break;
-            default:
-                articulation.xDrive = drive;
-                break;
+            case DriveAxis.Y: articulation.yDrive = drive; break;
+            case DriveAxis.Z: articulation.zDrive = drive; break;
+            default: articulation.xDrive = drive; break;
         }
     }
 
     /// <summary>
-    /// Read current joint angles and assign them as target angles.
-    /// Useful for calibration and zeroing.
+    /// Read current pose and set it as "user zero" (targetAngleDeg becomes 0 at this pose).
     /// </summary>
-    [ContextMenu("Read Current Angles As Target")]
-    public void ReadCurrentAnglesAsTarget()
+    [ContextMenu("Zero All Joints Here (Make Current Pose = 0)")]
+    public void ZeroAllJointsHere()
     {
         foreach (var joint in joints)
         {
@@ -155,7 +161,24 @@ public class JointEntry : MonoBehaviour
             if (joint.articulation == null) continue;
 
             joint.UpdateCurrentAngle();
-            joint.targetAngleDeg = joint.CurrentAngleDeg;
+            joint.ZeroHere();
+            joint.targetAngleDeg = 0f;
+        }
+    }
+
+    /// <summary>
+    /// Read current user angles and assign them as user targets (keeps pose).
+    /// </summary>
+    [ContextMenu("Read Current User Angles As Target")]
+    public void ReadCurrentUserAnglesAsTarget()
+    {
+        foreach (var joint in joints)
+        {
+            if (joint == null) continue;
+            if (joint.articulation == null) continue;
+
+            joint.UpdateCurrentAngle();
+            joint.targetAngleDeg = joint.CurrentUserDeg;
         }
     }
 }
