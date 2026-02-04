@@ -3,119 +3,144 @@ using UnityEngine;
 
 /// <summary>
 /// Simulates a 2D 360-degree spinning LiDAR (e.g., Orbbec MS200K) using Physics.Raycast.
-/// Output is a full scan (ranges array) at a given scan rate (Hz).
+/// Produces ROS LaserScan-like data and a getter for /scan topic payload.
 ///
-/// Coordinate convention:
-/// - Default: Y is up (Unity typical), scan happens on the XZ plane.
-/// - Angles increase clockwise when looking from +Y depending on axis; adjust angleOffsetDeg if needed.
+/// Notes:
+/// - header.stamp is the time of the FIRST ray in the scan.
+/// - This script uses SimClock (0-based sim time) if available.
+/// - Angles are ROS-style metadata (radians).
 /// </summary>
 [DisallowMultipleComponent]
 public class MS200KLiDARSim : MonoBehaviour
 {
-    [Header("MS200K-like Specs (default)")]
+    [Header("MS200K-like Specs")]
     [Tooltip("Minimum valid range in meters.")]
     public float minRangeMeters = 0.03f;
 
-    [Tooltip("Maximum range in meters (90% reflectance typical).")]
+    [Tooltip("Maximum valid range in meters.")]
     public float maxRangeMeters = 12.0f;
 
-    [Tooltip("Total measurement rate (points per second). MS200K max is around 4500 Hz.")]
+    [Tooltip("Total measurement rate (points per second).")]
     public int measurementRateHz = 4500;
 
-    [Tooltip("Scan rate in rotations per second (Hz). Typical 7~15 Hz. Default 10 Hz.")]
+    [Tooltip("Scan rate in rotations per second (Hz).")]
     public float scanRateHz = 10.0f;
 
-    [Header("Scan Geometry")]
-    [Tooltip("Start angle of scan in degrees. Usually 0..360. 0 points to +Z by default (configurable).")]
-    public float startAngleDeg = 0.0f;
+    [Header("Scan Geometry (ROS convention)")]
+    [Tooltip("ROS angle_min (radians). Typical: -PI.")]
+    public float rosAngleMin = -Mathf.PI;
 
-    [Tooltip("End angle of scan in degrees. Use 360 for full circle.")]
-    public float endAngleDeg = 360.0f;
+    [Tooltip("ROS angle_max (radians). Typical: +PI.")]
+    public float rosAngleMax = Mathf.PI;
 
-    [Tooltip("Angle offset applied to the scan direction. Use this to match your LiDAR forward direction.")]
+    [Tooltip("Angle offset applied to ray directions (degrees). Use to align your LiDAR forward axis.")]
     public float angleOffsetDeg = 0.0f;
 
     [Tooltip("If true, forces pointsPerScan to a fixed number instead of measurementRateHz/scanRateHz.")]
     public bool overridePointsPerScan = false;
 
-    [Tooltip("Number of rays per full scan (one rotation). If overridePointsPerScan is false, it is computed.")]
+    [Tooltip("Number of rays per scan (one rotation). If overridePointsPerScan is false, it is computed.")]
     public int pointsPerScan = 450;
+
+    [Tooltip("If true, simulate MS200K clockwise point order (device polar direction is clockwise).")]
+    public bool ms200kClockwise = true;
 
     [Header("Raycast")]
     [Tooltip("Which layers are considered obstacles.")]
     public LayerMask obstacleLayers = ~0;
 
-    [Tooltip("Start raycast a bit away from the origin to avoid self-hits (meters).")]
+    [Tooltip("Start raycast a bit away from origin to avoid self-hit (meters).")]
     public float rayStartOffset = 0.01f;
 
     [Tooltip("If true, ignore trigger colliders.")]
     public QueryTriggerInteraction triggerInteraction = QueryTriggerInteraction.Ignore;
 
-    [Header("Debug Visualization")]
-    [Tooltip("Draw LiDAR rays for debugging.")]
-    public bool drawRays = false;
-
-    [Tooltip("Only draw rays that hit something.")]
-    public bool drawHitsOnly = false;
-
-    [Tooltip("When no hit, draw ray at max range.")]
-    public bool drawMissAtMaxRange = true;
-
-    [Tooltip("Ray color when hit.")]
-    public Color hitRayColor = Color.green;
-
-    [Tooltip("Ray color when miss.")]
-    public Color missRayColor = Color.red;
-
-    [Tooltip("Ray duration in seconds (0 draws only for one frame).")]
-    public float rayDrawDuration = 0.0f;
-
     [Header("Noise (optional)")]
     [Tooltip("Gaussian noise standard deviation (meters). Set 0 to disable.")]
     public float rangeNoiseStdDev = 0.0f;
 
-    [Tooltip("Random seed. Use a fixed seed for reproducible noise.")]
+    [Tooltip("Random seed. 0 means non-deterministic.")]
     public int noiseSeed = 0;
 
-    [Header("ROS LaserScan Output")]
-    [Tooltip("frame_id for LaserScan-like data. If empty, uses GameObject name.")]
-    public string frameId = "";
+    [Header("ROS Output")]
+    [Tooltip("frame_id for LaserScan. If empty, uses GameObject name.")]
+    public string frameId = "ms200k";
 
-    /// <summary>
-    /// LaserScan-like data (ROS sensor_msgs/LaserScan) without stamp.
-    /// All angles are in radians.
-    /// </summary>
-    public struct LaserScanData
+    [Tooltip("If true, use SimClock.Instance.Now for stamp; otherwise fall back to Time.timeAsDouble.")]
+    public bool useSimClockIfAvailable = true;
+
+    // ------------------------
+    // ROS-like message structs
+    // ------------------------
+    [Serializable]
+    public struct RosTime
     {
+        public int sec;
+        public uint nanosec;
+
+        public static RosTime FromSec(double timeSec)
+        {
+            // timeSec is expected >= 0 in sim, but handle negative gracefully.
+            double t = timeSec;
+            int sec = (int)Math.Floor(t);
+            double frac = t - sec;
+            if (frac < 0)
+            {
+                // If negative fractional due to negative time, normalize.
+                sec -= 1;
+                frac = (t - sec);
+            }
+            uint nanosec = (uint)Math.Round(frac * 1e9);
+            if (nanosec >= 1000000000u)
+            {
+                sec += 1;
+                nanosec -= 1000000000u;
+            }
+            return new RosTime { sec = sec, nanosec = nanosec };
+        }
+    }
+
+    [Serializable]
+    public struct Header
+    {
+        public RosTime stamp;
         public string frame_id;
+    }
+
+    [Serializable]
+    public struct LaserScanMsg
+    {
+        public Header header;
+
         public float angle_min;
         public float angle_max;
         public float angle_increment;
+
         public float time_increment;
         public float scan_time;
+
         public float range_min;
         public float range_max;
+
         public float[] ranges;
         public float[] intensities;
     }
 
     /// <summary>
     /// Fired when a full scan is produced.
-    /// - timestamp: Time.time (seconds)
-    /// - anglesDeg: angle per point (degrees)
-    /// - ranges: distance per point (meters). If no hit, returns maxRangeMeters.
-    /// - hitFlags: true if hit something, false if no hit.
     /// </summary>
-    public event Action<float, float[], float[], bool[]> OnScanReady;
+    public event Action<LaserScanMsg> OnScanReady;
 
     private System.Random _rng;
-    private float _nextScanTime;
-    private LaserScanData _lastScan;
+    private double _nextScanTimeSec;
+    private LaserScanMsg _lastScan;
     private bool _hasScan;
 
     private void Awake()
     {
         _rng = (noiseSeed == 0) ? new System.Random() : new System.Random(noiseSeed);
+        _nextScanTimeSec = 0.0;
+        _hasScan = false;
     }
 
     private void OnValidate()
@@ -135,55 +160,86 @@ public class MS200KLiDARSim : MonoBehaviour
             pointsPerScan = Mathf.Max(1, pointsPerScan);
         }
 
-        // Avoid degenerate ranges
-        if (Mathf.Approximately(startAngleDeg, endAngleDeg))
+        if (Mathf.Approximately(rosAngleMin, rosAngleMax))
         {
-            endAngleDeg = startAngleDeg + 360.0f;
+            rosAngleMin = -Mathf.PI;
+            rosAngleMax = Mathf.PI;
         }
     }
 
     private void Update()
     {
-        if (Time.time >= _nextScanTime)
+        double now = NowSec();
+        if (now >= _nextScanTimeSec)
         {
-            _nextScanTime = Time.time + (1.0f / scanRateHz);
-            ProduceFullScan();
+            float scanTime = 1.0f / Mathf.Max(0.1f, scanRateHz);
+            double scanStartTime = now; // first-ray time (best effort)
+
+            _nextScanTimeSec = now + scanTime;
+            ProduceFullScan(scanStartTime, scanTime);
         }
     }
 
-    private void ProduceFullScan()
+    /// <summary>
+    /// Getter: return the latest /scan LaserScan message.
+    /// Returns false if no scan has been produced yet.
+    /// </summary>
+    public bool TryGetLaserScan(out LaserScanMsg msg)
     {
-        // Determine points per scan
-        int n = overridePointsPerScan ? pointsPerScan : Mathf.Max(1, Mathf.RoundToInt(measurementRateHz / scanRateHz));
+        msg = _lastScan;
+        return _hasScan;
+    }
 
-        float totalAngle = endAngleDeg - startAngleDeg;
-        if (totalAngle <= 0.0f) totalAngle += 360.0f;
+    private double NowSec()
+    {
+        if (useSimClockIfAvailable && SimClock.Instance != null)
+            return SimClock.Instance.Now;
 
-        float[] angles = new float[n];
-        float[] ranges = new float[n];
-        bool[] hits = new bool[n];
+        return Time.timeAsDouble;
+    }
+
+    private void ProduceFullScan(double scanStartTimeSec, float scanTime)
+    {
+        int n = overridePointsPerScan
+            ? Mathf.Max(1, pointsPerScan)
+            : Mathf.Max(1, Mathf.RoundToInt(measurementRateHz / scanRateHz));
+
+        // ROS angle metadata (radians)
+        float angleMin = rosAngleMin;
+        float angleMax = rosAngleMax;
+
+        // Common LaserScan convention:
+        // angle(i) = angle_min + i * angle_increment
+        float angleIncrement = (n <= 1) ? 0.0f : (angleMax - angleMin) / (n - 1);
+
+        // time_increment: time between measurements
+        // Often used: scan_time / (N - 1) for consistency with first..last sample span
+        float timeIncrement = (n <= 1) ? 0.0f : (scanTime / (n - 1));
+
+        float[] rangesForRos = new float[n];
+        float[] intensities = new float[n];
 
         Vector3 origin = transform.position;
         Vector3 up = Vector3.up;
+        Vector3 baseDir = transform.forward;
 
-        // Define "0 deg" direction: by default we use +Z as forward reference.
-        // If your LiDAR forward should be transform.forward, set baseDir = transform.forward instead.
-        Vector3 baseDir = Vector3.forward;
+        // If device scans clockwise, invert sign so point order matches clockwise.
+        float sign = ms200kClockwise ? -1.0f : 1.0f;
 
-        int drawEvery = Mathf.Max(1, n / 9);
+        // offset in radians
+        float offsetRad = angleOffsetDeg * Mathf.Deg2Rad;
 
         for (int i = 0; i < n; i++)
         {
-            float t = (n == 1) ? 0.0f : (float)i / (n - 1);
-            float angle = startAngleDeg + t * totalAngle + angleOffsetDeg;
+            float rosAngle = angleMin + i * angleIncrement;  // radians
+            float effectiveAngleRad = sign * rosAngle + offsetRad;
 
-            angles[i] = NormalizeAngleDeg(angle);
+            // convert radians -> degrees for Unity rotation
+            float deg = effectiveAngleRad * Mathf.Rad2Deg;
 
-            // Rotate baseDir around Y axis (scan on XZ plane)
-            Quaternion rot = Quaternion.AngleAxis(angle, up);
+            Quaternion rot = Quaternion.AngleAxis(deg, up);
             Vector3 dir = rot * baseDir;
 
-            // Start slightly away from origin to avoid self-collisions
             Vector3 rayOrigin = origin + dir * rayStartOffset;
 
             float measured = maxRangeMeters;
@@ -191,69 +247,50 @@ public class MS200KLiDARSim : MonoBehaviour
 
             if (hit)
             {
-                measured = hitInfo.distance + rayStartOffset; // compensate offset
-                measured = Mathf.Max(minRangeMeters, measured);
-                measured = Mathf.Min(maxRangeMeters, measured);
+                measured = hitInfo.distance + rayStartOffset;
+                measured = Mathf.Clamp(measured, minRangeMeters, maxRangeMeters);
+            }
+            else
+            {
+                measured = float.PositiveInfinity; // common ROS practice for "no return"
             }
 
-            // Add optional Gaussian noise
-            if (rangeNoiseStdDev > 0.0f)
+            if (rangeNoiseStdDev > 0.0f && float.IsFinite(measured))
             {
                 measured += (float)(Gaussian01(_rng) * rangeNoiseStdDev);
                 measured = Mathf.Clamp(measured, minRangeMeters, maxRangeMeters);
             }
 
-            ranges[i] = measured;
-            hits[i] = hit;
+            rangesForRos[i] = measured;
 
-            if (drawRays && (i % drawEvery == 0))
-            {
-                float drawDistance = hit ? measured : (drawMissAtMaxRange ? maxRangeMeters : measured);
-                if (!drawHitsOnly || hit)
-                {
-                    Debug.DrawRay(rayOrigin, dir * drawDistance, hit ? hitRayColor : missRayColor, rayDrawDuration);
-                }
-            }
-
+            // If you don't have intensity model, leave 0.
+            intensities[i] = 0.0f;
         }
 
-        OnScanReady?.Invoke(Time.time, angles, ranges, hits);
-
-        // Build LaserScan-like data (ROS) without stamp
-        float angleMinRad = Mathf.Deg2Rad * NormalizeAngleDeg(startAngleDeg + angleOffsetDeg);
-        float angleMaxRad = Mathf.Deg2Rad * NormalizeAngleDeg(startAngleDeg + totalAngle + angleOffsetDeg);
-        float angleIncrementRad = (n <= 1) ? 0.0f : (Mathf.Deg2Rad * totalAngle) / (n - 1);
-
-        _lastScan = new LaserScanData
+        _lastScan = new LaserScanMsg
         {
-            frame_id = string.IsNullOrEmpty(frameId) ? gameObject.name : frameId,
-            angle_min = angleMinRad,
-            angle_max = angleMaxRad,
-            angle_increment = angleIncrementRad,
-            time_increment = 1.0f / Mathf.Max(1, measurementRateHz),
-            scan_time = 1.0f / Mathf.Max(0.1f, scanRateHz),
+            header = new Header
+            {
+                stamp = RosTime.FromSec(scanStartTimeSec),
+                frame_id = string.IsNullOrEmpty(frameId) ? gameObject.name : frameId
+            },
+
+            angle_min = angleMin,
+            angle_max = angleMax,
+            angle_increment = angleIncrement,
+
+            time_increment = timeIncrement,
+            scan_time = scanTime,
+
             range_min = minRangeMeters,
             range_max = maxRangeMeters,
-            ranges = (float[])ranges.Clone(),
-            intensities = new float[n]
+
+            ranges = rangesForRos,
+            intensities = intensities
         };
+
         _hasScan = true;
-    }
-
-    /// <summary>
-    /// Getter for LaserScan-like data without stamp. Returns false if no scan yet.
-    /// </summary>
-    public bool TryGetLaserScanData(out LaserScanData data)
-    {
-        data = _lastScan;
-        return _hasScan;
-    }
-
-    private static float NormalizeAngleDeg(float deg)
-    {
-        deg %= 360.0f;
-        if (deg < 0.0f) deg += 360.0f;
-        return deg;
+        OnScanReady?.Invoke(_lastScan);
     }
 
     // Standard normal N(0,1) using Box-Muller transform

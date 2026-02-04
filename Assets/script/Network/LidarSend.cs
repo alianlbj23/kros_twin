@@ -4,7 +4,29 @@ using UnityEngine;
 
 /// <summary>
 /// Sends LiDAR scan data over WebSocket as binary frames.
-/// Depends on WsClientSharp and MS200KLiDARSim.
+/// Depends on WsClientSharp and MS200KLiDARSim (new version with LaserScanMsg).
+///
+/// Binary protocol (little-endian):
+/// Header:
+///   uint32 magic        ('LIDR')
+///   uint16 version
+///   uint16 flags
+///   uint32 pointCount
+///   int32  stamp_sec
+///   uint32 stamp_nanosec
+///   float32 angleMin
+///   float32 angleMax
+///   float32 angleIncrement
+///   float32 timeIncrement
+///   float32 scanTime
+///   float32 rangeMin
+///   float32 rangeMax
+/// Payload:
+///   float32 ranges[pointCount]
+///
+/// Notes:
+/// - We send ROS-like stamp (sec + nanosec) instead of float timestamp.
+/// - Optionally replace +Infinity ranges with rangeMax for compatibility.
 /// </summary>
 [DisallowMultipleComponent]
 public class LidarSend : MonoBehaviour
@@ -24,7 +46,10 @@ public class LidarSend : MonoBehaviour
     public uint magic = 0x4C494452; // 'LIDR'
 
     [Tooltip("Binary protocol version.")]
-    public ushort version = 1;
+    public ushort version = 2;
+
+    [Tooltip("If true, replace +Infinity with rangeMax in the outgoing payload.")]
+    public bool replaceInfinityWithRangeMax = true;
 
     private void OnEnable()
     {
@@ -45,61 +70,68 @@ public class LidarSend : MonoBehaviour
         }
     }
 
-    private void HandleScanReady(float timestamp, float[] anglesDeg, float[] ranges, bool[] hits)
+    private void HandleScanReady(MS200KLiDARSim.LaserScanMsg scan)
     {
         if (!sendOnScanReady) return;
         if (wsClient == null || !wsClient.IsConnected) return;
-        if (ranges == null || ranges.Length == 0) return;
+        if (scan.ranges == null || scan.ranges.Length == 0) return;
 
-        // Build header
-        int n = ranges.Length;
-        float angleMin = 0.0f;
-        float angleMax = 0.0f;
-        float angleInc = 0.0f;
-        float rangeMin = 0.0f;
-        float rangeMax = 0.0f;
+        int n = scan.ranges.Length;
 
-        if (lidar != null && lidar.TryGetLaserScanData(out var scan))
-        {
-            angleMin = scan.angle_min;
-            angleMax = scan.angle_max;
-            angleInc = scan.angle_increment;
-            rangeMin = scan.range_min;
-            rangeMax = scan.range_max;
-        }
+        // Pre-allocate
+        // Header bytes:
+        // magic(4) + version(2) + flags(2) + pointCount(4)
+        // + stamp_sec(4) + stamp_nanosec(4)
+        // + 7 floats (28 bytes) = 4*7
+        // Total header = 4+2+2+4+4+4+28 = 48 bytes
+        // Payload = n * 4
+        int headerBytes = 48;
+        var buffer = new List<byte>(headerBytes + n * 4);
 
-        var buffer = new List<byte>(64 + n * 4);
+        // flags (reserved)
+        ushort flags = 0;
 
-        // Header layout (little-endian):
-        // uint32 magic
-        // uint16 version
-        // uint16 flags
-        // uint32 pointCount
-        // float32 timestamp
-        // float32 angleMin
-        // float32 angleMax
-        // float32 angleIncrement
-        // float32 rangeMin
-        // float32 rangeMax
+        // Write header
         AppendUInt32(buffer, magic);
         AppendUInt16(buffer, version);
-        AppendUInt16(buffer, 0);
+        AppendUInt16(buffer, flags);
         AppendUInt32(buffer, (uint)n);
-        AppendFloat(buffer, timestamp);
-        AppendFloat(buffer, angleMin);
-        AppendFloat(buffer, angleMax);
-        AppendFloat(buffer, angleInc);
-        AppendFloat(buffer, rangeMin);
-        AppendFloat(buffer, rangeMax);
+
+        // ROS-like stamp
+        AppendInt32(buffer, scan.header.stamp.sec);
+        AppendUInt32(buffer, scan.header.stamp.nanosec);
+
+        // LaserScan metadata
+        AppendFloat(buffer, scan.angle_min);
+        AppendFloat(buffer, scan.angle_max);
+        AppendFloat(buffer, scan.angle_increment);
+        AppendFloat(buffer, scan.time_increment);
+        AppendFloat(buffer, scan.scan_time);
+        AppendFloat(buffer, scan.range_min);
+        AppendFloat(buffer, scan.range_max);
 
         // Payload: ranges
+        float rangeMax = scan.range_max;
+
         for (int i = 0; i < n; i++)
         {
-            AppendFloat(buffer, ranges[i]);
+            float r = scan.ranges[i];
+
+            if (replaceInfinityWithRangeMax && !float.IsFinite(r))
+            {
+                // Convert +Infinity/NaN to rangeMax (some receivers can't handle Inf)
+                r = rangeMax;
+            }
+
+            AppendFloat(buffer, r);
         }
 
         wsClient.SendBinary(buffer.ToArray());
     }
+
+    // ---------------------------
+    // Little-endian writers
+    // ---------------------------
 
     private static void AppendUInt16(List<byte> buffer, ushort value)
     {
@@ -113,6 +145,17 @@ public class LidarSend : MonoBehaviour
         buffer.Add((byte)((value >> 8) & 0xFF));
         buffer.Add((byte)((value >> 16) & 0xFF));
         buffer.Add((byte)((value >> 24) & 0xFF));
+    }
+
+    private static void AppendInt32(List<byte> buffer, int value)
+    {
+        unchecked
+        {
+            buffer.Add((byte)(value & 0xFF));
+            buffer.Add((byte)((value >> 8) & 0xFF));
+            buffer.Add((byte)((value >> 16) & 0xFF));
+            buffer.Add((byte)((value >> 24) & 0xFF));
+        }
     }
 
     private static void AppendFloat(List<byte> buffer, float value)
