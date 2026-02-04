@@ -51,6 +51,25 @@ public class MS200KLiDARSim : MonoBehaviour
     [Tooltip("If true, ignore trigger colliders.")]
     public QueryTriggerInteraction triggerInteraction = QueryTriggerInteraction.Ignore;
 
+    [Header("Debug Visualization")]
+    [Tooltip("Draw LiDAR rays for debugging.")]
+    public bool drawRays = false;
+
+    [Tooltip("Only draw rays that hit something.")]
+    public bool drawHitsOnly = false;
+
+    [Tooltip("When no hit, draw ray at max range.")]
+    public bool drawMissAtMaxRange = true;
+
+    [Tooltip("Ray color when hit.")]
+    public Color hitRayColor = Color.green;
+
+    [Tooltip("Ray color when miss.")]
+    public Color missRayColor = Color.red;
+
+    [Tooltip("Ray duration in seconds (0 draws only for one frame).")]
+    public float rayDrawDuration = 0.0f;
+
     [Header("Noise (optional)")]
     [Tooltip("Gaussian noise standard deviation (meters). Set 0 to disable.")]
     public float rangeNoiseStdDev = 0.0f;
@@ -151,6 +170,8 @@ public class MS200KLiDARSim : MonoBehaviour
         // If your LiDAR forward should be transform.forward, set baseDir = transform.forward instead.
         Vector3 baseDir = Vector3.forward;
 
+        int drawEvery = Mathf.Max(1, n / 9);
+
         for (int i = 0; i < n; i++)
         {
             float t = (n == 1) ? 0.0f : (float)i / (n - 1);
@@ -184,6 +205,15 @@ public class MS200KLiDARSim : MonoBehaviour
 
             ranges[i] = measured;
             hits[i] = hit;
+
+            if (drawRays && (i % drawEvery == 0))
+            {
+                float drawDistance = hit ? measured : (drawMissAtMaxRange ? maxRangeMeters : measured);
+                if (!drawHitsOnly || hit)
+                {
+                    Debug.DrawRay(rayOrigin, dir * drawDistance, hit ? hitRayColor : missRayColor, rayDrawDuration);
+                }
+            }
 
         }
 
