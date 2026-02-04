@@ -1540,6 +1540,7 @@ Transform:
   m_Children:
   - {fileID: 1414144961}
   - {fileID: 1857111967}
+  - {fileID: 1000720184}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &188645213
@@ -8472,6 +8473,51 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 834267974cc3e1f4e8aea5fad11d4584, type: 3}
+--- !u!1 &1000720183
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1000720184}
+  - component: {fileID: 1000720185}
+  m_Layer: 0
+  m_Name: SimulationClock
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1000720184
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1000720183}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 188383190}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1000720185
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1000720183}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 07b778e40f061274994b05efe7cde245, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SimClock
+  useScaledTime: 1
 --- !u!1 &1038235837 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 7101067122013933334, guid: 22265596eeaf98e4991b809d438ff41b, type: 3}
@@ -12277,29 +12323,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b1ef871982adbda4088d25fcf7521de3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MS200KLiDARSim
+  fovDeg: 360
+  scanRateHz: 10
+  measurementRateHz: 4500
   minRangeMeters: 0.03
   maxRangeMeters: 12
-  measurementRateHz: 4500
-  scanRateHz: 10
-  startAngleDeg: 0
-  endAngleDeg: 360
-  angleOffsetDeg: 0
-  overridePointsPerScan: 0
-  pointsPerScan: 450
+  resolutionDeg: 0.8
+  rotationDirection: 1
   obstacleLayers:
     serializedVersion: 2
     m_Bits: 4294967295
   rayStartOffset: 0.01
   triggerInteraction: 1
-  drawRays: 1
-  drawHitsOnly: 0
-  drawMissAtMaxRange: 1
-  hitRayColor: {r: 0, g: 1, b: 0, a: 1}
-  missRayColor: {r: 1, g: 0, b: 0, a: 1}
-  rayDrawDuration: 1
-  rangeNoiseStdDev: 0
-  noiseSeed: 0
-  frameId: lacer
+  frameId: ms200k
+  useSimClockIfAvailable: 1
+  angleOffsetDeg: 0
 --- !u!1 &1490225704
 GameObject:
   m_ObjectHideFlags: 0
@@ -15168,7 +15206,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1857111967}
-  - component: {fileID: 1857111968}
+  - component: {fileID: 1857111969}
   m_Layer: 0
   m_Name: LiDARPublish
   m_TagString: Untagged
@@ -15191,7 +15229,7 @@ Transform:
   m_Children: []
   m_Father: {fileID: 188383190}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1857111968
+--- !u!114 &1857111969
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -15207,7 +15245,8 @@ MonoBehaviour:
   lidar: {fileID: 1477990093}
   sendOnScanReady: 1
   magic: 1279870034
-  version: 1
+  version: 2
+  replaceInfinityWithRangeMax: 1
 --- !u!1 &1859514306
 GameObject:
   m_ObjectHideFlags: 8

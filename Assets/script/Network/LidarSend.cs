@@ -10,7 +10,6 @@ using UnityEngine;
 /// Header:
 ///   uint32 magic        ('LIDR')
 ///   uint16 version
-///   uint16 flags
 ///   uint32 pointCount
 ///   int32  stamp_sec
 ///   uint32 stamp_nanosec
@@ -80,21 +79,17 @@ public class LidarSend : MonoBehaviour
 
         // Pre-allocate
         // Header bytes:
-        // magic(4) + version(2) + flags(2) + pointCount(4)
+        // magic(4) + version(2) + pointCount(4)
         // + stamp_sec(4) + stamp_nanosec(4)
         // + 7 floats (28 bytes) = 4*7
-        // Total header = 4+2+2+4+4+4+28 = 48 bytes
+        // Total header = 4+2+4+4+4+28 = 46 bytes
         // Payload = n * 4
-        int headerBytes = 48;
+        int headerBytes = 46;
         var buffer = new List<byte>(headerBytes + n * 4);
-
-        // flags (reserved)
-        ushort flags = 0;
 
         // Write header
         AppendUInt32(buffer, magic);
         AppendUInt16(buffer, version);
-        AppendUInt16(buffer, flags);
         AppendUInt32(buffer, (uint)n);
 
         // ROS-like stamp
