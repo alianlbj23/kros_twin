@@ -6,24 +6,26 @@ public class CarCFrontWheelReceiver : MonoBehaviour
 {
     public WsClientSharp ws;
 
-    // 最新一筆資料（主執行緒用）
-    private float[] _latest;
+    // ⭐ 對外事件（ArticulationWheelRPMController 會用到）
+    public event Action<float[]> OnCarCArray;
+
     private readonly ConcurrentQueue<float[]> _queue = new();
 
     void OnEnable()
     {
-        ws.OnBinaryMessage += OnBinary;
+        if (ws != null)
+            ws.OnBinaryMessage += OnBinary;
     }
 
     void OnDisable()
     {
-        ws.OnBinaryMessage -= OnBinary;
+        if (ws != null)
+            ws.OnBinaryMessage -= OnBinary;
     }
 
     private void OnBinary(byte[] data)
     {
-        // Decode float32 little-endian
-        if (data.Length % 4 != 0) return;
+        if (data == null || data.Length % 4 != 0) return;
 
         int n = data.Length / 4;
         var arr = new float[n];
@@ -49,20 +51,15 @@ public class CarCFrontWheelReceiver : MonoBehaviour
 
     void Update()
     {
-        // 主執行緒安全處理
-        while (_queue.TryDequeue(out var arr))
+        // 主執行緒：只丟最新一筆
+        float[] latest = null;
+        while (_queue.TryDequeue(out var v))
+            latest = v;
+
+        if (latest != null)
         {
-            _latest = arr;
-            HandleCarC(arr);
+            // ⭐ 在主執行緒觸發 event
+            OnCarCArray?.Invoke(latest);
         }
-    }
-
-    private void HandleCarC(float[] v)
-    {
-        // v == /car_C_front_wheel
-        // e.g. v[0]=left, v[1]=right ...
-        Debug.Log($"car_C_front_wheel: {string.Join(", ", v)}");
-
-        // 👉 在這裡呼叫你的 CarController / ArticulationBody
     }
 }

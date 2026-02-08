@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class ArticulationWheelRPMController : MonoBehaviour
+public class ArticulationWheelRPMControllerTest : MonoBehaviour
 {
     public enum DriveAxis { X, Y, Z }
 
@@ -31,7 +31,7 @@ public class ArticulationWheelRPMController : MonoBehaviour
     public float stiffness = 0f;
 
     [Header("Debug (read-only)")]
-    [SerializeField] private float currentRPM; // approx based on angularVelocity projected onto axis
+    [SerializeField] private float[] currentRPMs; // per-wheel RPMs
 
     void Reset()
     {
@@ -42,8 +42,16 @@ public class ArticulationWheelRPMController : MonoBehaviour
     {
         if (wheels == null || wheels.Length == 0) return;
 
-        // Read RPM from the first wheel for debug (optional)
-        currentRPM = (wheels[0] != null) ? GetWheelRPM(wheels[0]) : 0f;
+        // Read RPMs for debug (one per wheel)
+        if (currentRPMs == null || currentRPMs.Length != wheels.Length)
+        {
+            currentRPMs = new float[wheels.Length];
+        }
+
+        for (int i = 0; i < wheels.Length; i++)
+        {
+            currentRPMs[i] = (wheels[i] != null) ? GetWheelRPM(wheels[i]) : 0f;
+        }
 
         if (!enableMotor) return;
 
@@ -122,5 +130,5 @@ public class ArticulationWheelRPMController : MonoBehaviour
     // Optional: call this from UI slider
     public void SetRPM(float rpm) => targetRPM = rpm;
 
-    public float CurrentRPM => currentRPM;
+    public float[] CurrentRPMs => currentRPMs;
 }
