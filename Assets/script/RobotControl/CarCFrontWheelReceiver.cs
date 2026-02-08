@@ -6,7 +6,6 @@ public class CarCFrontWheelReceiver : MonoBehaviour
 {
     public WsClientSharp ws;
 
-    // ⭐ 對外事件（ArticulationWheelRPMController 會用到）
     public event Action<float[]> OnCarCArray;
 
     private readonly ConcurrentQueue<float[]> _queue = new();
@@ -51,14 +50,12 @@ public class CarCFrontWheelReceiver : MonoBehaviour
 
     void Update()
     {
-        // 主執行緒：只丟最新一筆
         float[] latest = null;
         while (_queue.TryDequeue(out var v))
             latest = v;
 
         if (latest != null)
         {
-            // ⭐ 在主執行緒觸發 event
             OnCarCArray?.Invoke(latest);
         }
     }
