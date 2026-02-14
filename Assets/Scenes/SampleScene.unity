@@ -1257,7 +1257,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &162888198
 Transform:
   m_ObjectHideFlags: 0
@@ -1376,7 +1376,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &174993671
 Transform:
   m_ObjectHideFlags: 0
@@ -1542,6 +1542,9 @@ Transform:
   - {fileID: 1857111967}
   - {fileID: 1000720184}
   - {fileID: 2062257123}
+  - {fileID: 1816894685}
+  - {fileID: 1895243421}
+  - {fileID: 2094355609}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &188645213
@@ -5633,7 +5636,7 @@ GameObject:
   - component: {fileID: 768933859}
   - component: {fileID: 768933858}
   m_Layer: 0
-  m_Name: car_stand_v2__1__1
+  m_Name: car_stand_RR
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -8916,7 +8919,7 @@ MonoBehaviour:
   forceLimit: 5000
   damping: 200
   stiffness: 0
-  currentRPM: 0
+  currentRPMs: []
 --- !u!1 &1095104649
 GameObject:
   m_ObjectHideFlags: 0
@@ -10039,7 +10042,7 @@ GameObject:
   - component: {fileID: 1233391242}
   - component: {fileID: 1233391241}
   m_Layer: 0
-  m_Name: car_stand_v2__2___1__1
+  m_Name: car_stand_FR
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -13047,7 +13050,7 @@ GameObject:
   - component: {fileID: 1579878961}
   - component: {fileID: 1579878960}
   m_Layer: 0
-  m_Name: car_stand_v2__2__1
+  m_Name: car_stand_FL
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -14719,6 +14722,66 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 46398bc5d6905ad429a6d2d973afe002, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Robotics.UrdfImporter::Unity.Robotics.UrdfImporter.UrdfCollisions
+--- !u!1 &1816894684
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1816894685}
+  - component: {fileID: 1816894686}
+  m_Layer: 0
+  m_Name: CarDrive
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 0
+--- !u!4 &1816894685
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1816894684}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 188383190}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1816894686
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1816894684}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d2801de31401fc746aa3ce5c7cf547b3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ArticulationWheelRPMController
+  wheels:
+  - {fileID: 196363217}
+  - {fileID: 1095104653}
+  - {fileID: 910378205}
+  - {fileID: 1846649817}
+  receiver: {fileID: 2062257124}
+  subscribeReceiver: 1
+  axis: 0
+  invertDirection: 0
+  enableMotor: 1
+  forceLimit: 1000
+  damping: 50
+  stiffness: 0
+  currentRPMs: []
+  targetFrontRPM: 0
+  targetRearRPM: 0
 --- !u!1 &1827593752
 GameObject:
   m_ObjectHideFlags: 0
@@ -14733,7 +14796,7 @@ GameObject:
   - component: {fileID: 1827593755}
   - component: {fileID: 1827593754}
   m_Layer: 0
-  m_Name: car_stand_v2_1
+  m_Name: car_stand_RL
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -15409,6 +15472,51 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 46398bc5d6905ad429a6d2d973afe002, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Robotics.UrdfImporter::Unity.Robotics.UrdfImporter.UrdfCollisions
+--- !u!1 &1895243420
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1895243421}
+  - component: {fileID: 1895243422}
+  m_Layer: 0
+  m_Name: CmdReciever
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1895243421
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1895243420}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 188383190}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1895243422
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1895243420}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 59da6b1bcee6fb141874be911d4cebd1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CmdVelReceiver
+  ws: {fileID: 1414144962}
 --- !u!1 &1914991438
 GameObject:
   m_ObjectHideFlags: 8
@@ -16757,6 +16865,80 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Unity.Robotics.UrdfImporter::Unity.Robotics.UrdfImporter.UrdfLink
   IsBaseLink: 0
+--- !u!1 &2094355608
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2094355609}
+  - component: {fileID: 2094355610}
+  m_Layer: 0
+  m_Name: CmdDriver
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2094355609
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2094355608}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 188383190}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2094355610
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2094355608}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 86e30fc050ce744468abd4fa2b3262ac, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CmdDriver
+  wheels:
+  - {fileID: 196363217}
+  - {fileID: 910378205}
+  - {fileID: 1095104653}
+  - {fileID: 1846649817}
+  cmdVelReceiver: {fileID: 1895243422}
+  subscribeReceiver: 1
+  wheelRadius: 0.05035
+  wheelSeparation: 0.2828
+  useLinearX: 1
+  useAngularZ: 1
+  rosUnits: 1
+  maxRPM: 100
+  maxLinearSpeed: 10000
+  maxAngularSpeed: 10000
+  axis: 0
+  invertDirection: 0
+  invertLeftOnly: 0
+  invertRightOnly: 0
+  enableMotor: 1
+  forceLimit: 5000
+  damping: 5
+  stiffness: 0
+  currentRPMs: []
+  cmdV: 0
+  cmdW: 0
+  targetLeftRPM: 0
+  targetRightRPM: 0
+  targetLeftDegPerSec: 0
+  targetRightDegPerSec: 0
 --- !u!1 &2111455673 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 7298519703973102223, guid: 97b0830afabf52446ab1824dd027fa89, type: 3}
